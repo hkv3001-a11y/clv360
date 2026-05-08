@@ -1,11 +1,6 @@
 {
   "buildCommand": "npm install && npm run build",
   "outputDirectory": "dist",
-  "functions": {
-    "api/index.py": {
-      "includeFiles": "backend/**"
-    }
-  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }

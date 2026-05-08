@@ -1,9 +1,9 @@
-backend/.env
-backend/clv360.db
-backend/__pycache__/
-backend/**/__pycache__/
-backend/.pytest_cache/
-backend/**/*.pyc
+api/backend/.env
+api/backend/clv360.db
+api/backend/__pycache__/
+api/backend/**/__pycache__/
+api/backend/.pytest_cache/
+api/backend/**/*.pyc
 node_modules/
 dist/
 .superpowers/
