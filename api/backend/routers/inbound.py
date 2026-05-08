@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from database import get_connection
+from database import get_connection, get_cursor
 from models import InboundMessage
 from services.ai import parse_inbound_message
 
@@ -9,7 +9,9 @@ router = APIRouter()
 @router.post("/inbound/test")
 async def inbound_test(msg: InboundMessage):
     conn = get_connection()
-    jobs = [dict(r) for r in conn.execute("SELECT * FROM jobs WHERE status != 'cancelled'").fetchall()]
+    cur = get_cursor(conn)
+    cur.execute("SELECT * FROM jobs WHERE status != 'cancelled'")
+    jobs = [dict(r) for r in cur.fetchall()]
 
     parsed = await parse_inbound_message(msg.message, msg.sender_name, jobs)
 
@@ -23,21 +25,22 @@ async def inbound_test(msg: InboundMessage):
             updates["percent_complete"] = parsed["percent_complete"]
 
         if updates:
-            set_clause = ", ".join(f"{k} = ?" for k in updates)
+            set_clause = ", ".join(f"{k} = %s" for k in updates)
             values = list(updates.values()) + [job_id]
-            conn.execute(
-                f"UPDATE jobs SET {set_clause}, updated_at = datetime('now') WHERE id = ?",
+            cur.execute(
+                f"UPDATE jobs SET {set_clause}, updated_at = NOW() WHERE id = %s",
                 values,
             )
-            conn.execute(
+            cur.execute(
                 """INSERT INTO activity_entries
                        (job_id, source_name, channel, raw_message, parsed_action)
-                   VALUES (?, ?, ?, ?, ?)""",
+                   VALUES (%s, %s, %s, %s, %s)""",
                 (job_id, msg.sender_name, msg.channel, msg.message, parsed.get("parsed_action", "")),
             )
             conn.commit()
             job_updated = True
 
+    cur.close()
     conn.close()
     return {
         "job_updated": job_updated,

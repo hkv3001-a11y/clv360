@@ -1,6 +1,6 @@
 from fastapi import APIRouter
-from database import get_connection
-from datetime import datetime, timedelta
+from database import get_connection, get_cursor
+from datetime import datetime, timedelta, timezone
 
 router = APIRouter()
 
@@ -10,40 +10,36 @@ STALE_DAYS = 5
 @router.get("/alerts")
 def get_alerts():
     conn = get_connection()
-    jobs = conn.execute(
-        "SELECT * FROM jobs WHERE status = 'active'"
-    ).fetchall()
+    cur = get_cursor(conn)
+    cur.execute("SELECT * FROM jobs WHERE status = 'active'")
+    jobs = cur.fetchall()
 
     alerts = []
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     for job in jobs:
-        last = conn.execute(
-            "SELECT created_at FROM activity_entries WHERE job_id = ? ORDER BY created_at DESC LIMIT 1",
+        cur.execute(
+            "SELECT created_at FROM activity_entries WHERE job_id = %s ORDER BY created_at DESC LIMIT 1",
             (job["id"],),
-        ).fetchone()
+        )
+        last = cur.fetchone()
 
-        if last:
-            try:
-                ref_dt = datetime.fromisoformat(last["created_at"])
-            except ValueError:
-                ref_dt = now
-        else:
-            try:
-                ref_dt = datetime.fromisoformat(job["created_at"])
-            except ValueError:
-                ref_dt = now
+        ref_dt = last["created_at"] if last else job["created_at"]
+        if ref_dt and ref_dt.tzinfo is None:
+            ref_dt = ref_dt.replace(tzinfo=timezone.utc)
 
-        days_stale = (now - ref_dt).days
-        if days_stale >= STALE_DAYS:
-            alerts.append({
-                "type": "stale_job",
-                "job_id": job["id"],
-                "job_name": job["name"],
-                "days_stale": days_stale,
-                "message": f"{job['name']} has had no update in {days_stale} days.",
-                "severity": "warning",
-            })
+        if ref_dt:
+            days_stale = (now - ref_dt).days
+            if days_stale >= STALE_DAYS:
+                alerts.append({
+                    "type": "stale_job",
+                    "job_id": job["id"],
+                    "job_name": job["name"],
+                    "days_stale": days_stale,
+                    "message": f"{job['name']} has had no update in {days_stale} days.",
+                    "severity": "warning",
+                })
 
+    cur.close()
     conn.close()
     return {"alerts": alerts}

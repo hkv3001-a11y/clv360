@@ -1,7 +1,7 @@
 import re
 import json
 from fastapi import APIRouter
-from database import get_connection
+from database import get_connection, get_cursor
 from models import ChatMessage, ChatResponse
 from services.ai import chat_completion
 
@@ -23,13 +23,14 @@ RULES:
 
 
 def _build_context(conn) -> str:
-    jobs = [dict(r) for r in conn.execute("SELECT * FROM jobs ORDER BY created_at DESC").fetchall()]
-    crew = [dict(r) for r in conn.execute("SELECT * FROM crew_members").fetchall()]
-    recent = [
-        dict(r) for r in conn.execute(
-            "SELECT * FROM activity_entries ORDER BY created_at DESC LIMIT 20"
-        ).fetchall()
-    ]
+    cur = get_cursor(conn)
+    cur.execute("SELECT * FROM jobs ORDER BY created_at DESC")
+    jobs = [dict(r) for r in cur.fetchall()]
+    cur.execute("SELECT * FROM crew_members")
+    crew = [dict(r) for r in cur.fetchall()]
+    cur.execute("SELECT * FROM activity_entries ORDER BY created_at DESC LIMIT 20")
+    recent = [dict(r) for r in cur.fetchall()]
+    cur.close()
     return json.dumps({"jobs": jobs, "crew": crew, "recent_activity": recent}, default=str)
 
 
@@ -50,13 +51,15 @@ def _apply_action(action: dict, conn) -> None:
         job_id = action.get("job_id")
         updates = action.get("updates", {})
         if job_id and updates:
-            set_clause = ", ".join(f"{k} = ?" for k in updates)
+            cur = get_cursor(conn)
+            set_clause = ", ".join(f"{k} = %s" for k in updates)
             values = list(updates.values()) + [job_id]
-            conn.execute(
-                f"UPDATE jobs SET {set_clause}, updated_at = datetime('now') WHERE id = ?",
+            cur.execute(
+                f"UPDATE jobs SET {set_clause}, updated_at = NOW() WHERE id = %s",
                 values,
             )
             conn.commit()
+            cur.close()
 
 
 @router.post("/chat", response_model=ChatResponse)

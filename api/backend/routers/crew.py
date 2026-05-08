@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
-from database import get_connection
+from database import get_connection, get_cursor
 from models import CrewCreate, CrewUpdate, CrewOut
 
 router = APIRouter()
@@ -9,7 +9,10 @@ router = APIRouter()
 @router.get("/crew", response_model=List[CrewOut])
 def list_crew():
     conn = get_connection()
-    rows = conn.execute("SELECT * FROM crew_members ORDER BY name").fetchall()
+    cur = get_cursor(conn)
+    cur.execute("SELECT * FROM crew_members ORDER BY name")
+    rows = cur.fetchall()
+    cur.close()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -17,13 +20,14 @@ def list_crew():
 @router.post("/crew", response_model=CrewOut, status_code=201)
 def create_crew_member(member: CrewCreate):
     conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO crew_members (name, phone, email) VALUES (?, ?, ?)",
+    cur = get_cursor(conn)
+    cur.execute(
+        "INSERT INTO crew_members (name, phone, email) VALUES (%s, %s, %s) RETURNING *",
         (member.name, member.phone, member.email),
     )
+    row = cur.fetchone()
     conn.commit()
-    row = conn.execute("SELECT * FROM crew_members WHERE id = ?", (c.lastrowid,)).fetchone()
+    cur.close()
     conn.close()
     return dict(row)
 
@@ -31,18 +35,23 @@ def create_crew_member(member: CrewCreate):
 @router.put("/crew/{member_id}", response_model=CrewOut)
 def update_crew_member(member_id: int, member: CrewUpdate):
     conn = get_connection()
-    if not conn.execute("SELECT id FROM crew_members WHERE id = ?", (member_id,)).fetchone():
+    cur = get_cursor(conn)
+    cur.execute("SELECT id FROM crew_members WHERE id = %s", (member_id,))
+    if not cur.fetchone():
+        cur.close()
         conn.close()
         raise HTTPException(status_code=404, detail="Crew member not found")
 
     updates = {k: v for k, v in member.model_dump().items() if v is not None}
     if updates:
-        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        set_clause = ", ".join(f"{k} = %s" for k in updates)
         values = list(updates.values()) + [member_id]
-        conn.execute(f"UPDATE crew_members SET {set_clause} WHERE id = ?", values)
+        cur.execute(f"UPDATE crew_members SET {set_clause} WHERE id = %s", values)
         conn.commit()
 
-    row = conn.execute("SELECT * FROM crew_members WHERE id = ?", (member_id,)).fetchone()
+    cur.execute("SELECT * FROM crew_members WHERE id = %s", (member_id,))
+    row = cur.fetchone()
+    cur.close()
     conn.close()
     return dict(row)
 
@@ -50,9 +59,13 @@ def update_crew_member(member_id: int, member: CrewUpdate):
 @router.delete("/crew/{member_id}", status_code=204)
 def delete_crew_member(member_id: int):
     conn = get_connection()
-    if not conn.execute("SELECT id FROM crew_members WHERE id = ?", (member_id,)).fetchone():
+    cur = get_cursor(conn)
+    cur.execute("SELECT id FROM crew_members WHERE id = %s", (member_id,))
+    if not cur.fetchone():
+        cur.close()
         conn.close()
         raise HTTPException(status_code=404, detail="Crew member not found")
-    conn.execute("DELETE FROM crew_members WHERE id = ?", (member_id,))
+    cur.execute("DELETE FROM crew_members WHERE id = %s", (member_id,))
     conn.commit()
+    cur.close()
     conn.close()

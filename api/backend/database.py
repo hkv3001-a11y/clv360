@@ -1,31 +1,33 @@
 import os
-import sqlite3
-from pathlib import Path
+import psycopg2
+import psycopg2.extras
 
-# Vercel serverless functions have a read-only filesystem except /tmp
-DB_PATH = Path("/tmp/clv360.db") if os.environ.get("VERCEL") else Path(__file__).parent / "clv360.db"
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 
-def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
+def get_connection():
+    conn = psycopg2.connect(DATABASE_URL)
     return conn
+
+
+def get_cursor(conn):
+    return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
 
 def init_db() -> None:
     conn = get_connection()
-    conn.executescript("""
+    cur = get_cursor(conn)
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS crew_members (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
             phone TEXT DEFAULT '',
             email TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now'))
+            created_at TIMESTAMPTZ DEFAULT NOW()
         );
 
         CREATE TABLE IF NOT EXISTS jobs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
             address TEXT DEFAULT '',
             status TEXT DEFAULT 'active'
@@ -35,28 +37,29 @@ def init_db() -> None:
                 CHECK(percent_complete BETWEEN 0 AND 100),
             start_date TEXT,
             target_date TEXT,
-            created_at TEXT DEFAULT (datetime('now')),
-            updated_at TEXT DEFAULT (datetime('now'))
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
         );
 
         CREATE TABLE IF NOT EXISTS activity_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
             source_name TEXT DEFAULT '',
             channel TEXT DEFAULT 'manual'
                 CHECK(channel IN ('sms','whatsapp','email','manual','ai')),
             raw_message TEXT DEFAULT '',
             parsed_action TEXT DEFAULT '',
-            created_at TEXT DEFAULT (datetime('now'))
+            created_at TIMESTAMPTZ DEFAULT NOW()
         );
 
         CREATE TABLE IF NOT EXISTS notes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
             body TEXT NOT NULL,
             author TEXT DEFAULT 'Owner',
-            created_at TEXT DEFAULT (datetime('now'))
+            created_at TIMESTAMPTZ DEFAULT NOW()
         );
     """)
     conn.commit()
+    cur.close()
     conn.close()
