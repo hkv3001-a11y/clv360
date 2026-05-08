@@ -1,7 +1,9 @@
+import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "clv360.db"
+# Vercel serverless functions have a read-only filesystem except /tmp
+DB_PATH = Path("/tmp/clv360.db") if os.environ.get("VERCEL") else Path(__file__).parent / "clv360.db"
 
 
 def get_connection() -> sqlite3.Connection:

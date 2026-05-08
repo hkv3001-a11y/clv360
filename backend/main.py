@@ -7,7 +7,7 @@ app = FastAPI(title="CLV360 API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "https://clv360.com", "https://*.vercel.app"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
