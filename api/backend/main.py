@@ -31,26 +31,3 @@ app.include_router(alerts.router, prefix="/api")
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
-
-
-@app.get("/api/debug-db")
-def debug_db():
-    import os
-    url = os.environ.get("DATABASE_URL", "NOT SET")
-    # Only show non-sensitive parts
-    if url != "NOT SET" and "@" in url:
-        parts = url.split("@")
-        safe_url = "***@" + parts[-1]
-    else:
-        safe_url = url[:20] + "..." if len(url) > 20 else url
-    try:
-        from database import get_connection, get_cursor
-        conn = get_connection()
-        cur = get_cursor(conn)
-        cur.execute("SELECT COUNT(*) as n FROM jobs")
-        count = cur.fetchone()["n"]
-        cur.close()
-        conn.close()
-        return {"db": "connected", "jobs_count": count, "url_hint": safe_url}
-    except Exception as e:
-        return {"db": "error", "error": str(e), "url_hint": safe_url}
