@@ -41,9 +41,9 @@ def debug_db():
         conn = get_connection()
         cur = get_cursor(conn)
         cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
+        tables = [r["table_name"] for r in cur.fetchall()]
         cur.close()
         conn.close()
-        tables = [r["table_name"] for r in cur.fetchall()]
         return {"db": "connected", "url": safe, "tables": tables}
     except Exception as e:
         return {"db": "error", "error": str(e)}
