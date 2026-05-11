@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
 
 # ── Job ──────────────────────────────────────────────────────────────────────
@@ -33,8 +34,8 @@ class JobOut(BaseModel):
     percent_complete: int
     start_date: Optional[str]
     target_date: Optional[str]
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
 
 # ── Crew ─────────────────────────────────────────────────────────────────────
@@ -56,7 +57,7 @@ class CrewOut(BaseModel):
     name: str
     phone: str
     email: str
-    created_at: str
+    created_at: datetime
 
 
 # ── Activity ──────────────────────────────────────────────────────────────────
@@ -75,7 +76,7 @@ class ActivityOut(BaseModel):
     channel: str
     raw_message: str
     parsed_action: str
-    created_at: str
+    created_at: datetime
 
 
 # ── Notes ─────────────────────────────────────────────────────────────────────
@@ -91,7 +92,7 @@ class NoteOut(BaseModel):
     job_id: Optional[int]
     body: str
     author: str
-    created_at: str
+    created_at: datetime
 
 
 # ── Chat ──────────────────────────────────────────────────────────────────────
