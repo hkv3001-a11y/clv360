@@ -31,3 +31,18 @@ app.include_router(alerts.router, prefix="/api")
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/debug-db")
+def debug_db():
+    try:
+        from database import get_connection, get_cursor, DATABASE_URL
+        safe = ("***@" + DATABASE_URL.split("@")[-1]) if "@" in DATABASE_URL else DATABASE_URL[:30]
+        conn = get_connection()
+        cur = get_cursor(conn)
+        cur.execute("SELECT 1")
+        cur.close()
+        conn.close()
+        return {"db": "connected", "url": safe}
+    except Exception as e:
+        return {"db": "error", "error": str(e)}
