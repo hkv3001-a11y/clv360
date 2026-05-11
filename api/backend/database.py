@@ -4,6 +4,10 @@ import psycopg2.extras
 
 _url = os.environ.get("DATABASE_URL", "")
 
+# Strip accidental "DATABASE_URL=" prefix if user pasted the full env line
+if _url.startswith("DATABASE_URL="):
+    _url = _url[len("DATABASE_URL="):]
+
 # Supabase requires SSL — add sslmode=require if not already present
 if _url and "sslmode" not in _url:
     _url += "?sslmode=require" if "?" not in _url else "&sslmode=require"
